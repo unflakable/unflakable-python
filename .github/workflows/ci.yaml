@@ -1,0 +1,163 @@
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ main, unsquashed-private ]
+  pull_request:
+    branches: [ main, unsquashed-private ]
+
+  # Run the pipeline daily so that we get continuous dogfooding and coverage of the latest Python
+  # and PyTest patch versions.
+  schedule:
+    # Run at 6pm UTC/10am Pacific
+    - cron: 0 18 * * *
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch: { }
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  check:
+    name: Typecheck, lint, and check code style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: Install tox
+        id: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+
+      - name: Typecheck
+        run: tox -e mypy
+
+      - name: Lint
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: tox -e flake8
+
+      - name: Check code style
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: tox -e pycodestyle
+
+      - name: Build PyPI package
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: |
+          pip install build twine
+          python -m build
+
+  pytest_integration_tests:
+    name: "PyTest Integration Tests: ${{ matrix.tox_env }}-${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    needs:
+      # Don't incur the cost of the test matrix if the basic build fails.
+      - check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        tox_env:
+          - py37-pytest62
+          - py37-pytest70
+          - py37-pytest71
+          - py38-pytest62
+          - py38-pytest70
+          - py38-pytest71
+          - py39-pytest62
+          - py39-pytest70
+          - py39-pytest71
+          - py310-pytest62
+          - py310-pytest70
+          - py310-pytest71
+        include:
+          - tox_env: "py37-pytest62"
+            python: "3.7"
+          - tox_env: "py37-pytest70"
+            python: "3.7"
+          - tox_env: "py37-pytest71"
+            python: "3.7"
+          - tox_env: "py38-pytest62"
+            python: "3.8"
+          - tox_env: "py38-pytest70"
+            python: "3.8"
+          - tox_env: "py38-pytest71"
+            python: "3.8"
+          - tox_env: "py39-pytest62"
+            python: "3.9"
+          - tox_env: "py39-pytest70"
+            python: "3.9"
+          - tox_env: "py39-pytest71"
+            python: "3.9"
+          - tox_env: "py310-pytest62"
+            python: "3.10"
+          - tox_env: "py310-pytest70"
+            python: "3.10"
+          - tox_env: "py310-pytest71"
+            python: "3.10"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+
+      - name: Enable Unflakable dogfooding
+        run: |
+          echo "UNFLAKABLE_API_KEY=${{ secrets.UNFLAKABLE_API_KEY }}" >> $GITHUB_ENV
+        if: github.event.action != 'pull_request'
+
+      - name: Test
+        run: |
+          TOX_TESTENV_PASSENV=UNFLAKABLE_API_KEY tox -e ${{ matrix.tox_env }} -- \
+            --enable-unflakable \
+            --test-suite-id 2AT4xgduQdwkVKSaO0qJ2Dqm2JY \
+            -s \
+            -v
+
+  publish:
+    name: Publish to PyPI
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+    runs-on: ubuntu-latest
+    needs:
+      - check
+      - pytest_integration_tests
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@717ba43cfbb0387f6ce311b169a825772f54d295
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
