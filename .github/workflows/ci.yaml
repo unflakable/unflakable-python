@@ -135,7 +135,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    if: github.event_name == 'release' && startsWith(github.event.ref, 'refs/tags')
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     needs:
       - check
