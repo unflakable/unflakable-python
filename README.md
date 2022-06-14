@@ -17,6 +17,8 @@ for instructions on getting started using Unflakable.
 
 ## PyTest Plugin
 
+[![PyPI version](https://img.shields.io/pypi/v/pytest-unflakable.svg)](https://pypi.org/project/pytest-unflakable)
+
 This Unflakable plugin enables users of the [PyTest](https://pytest.org) Python test framework
 to quarantine flaky tests and track test results.
 
