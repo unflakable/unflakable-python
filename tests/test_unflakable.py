@@ -1216,8 +1216,8 @@ def test_git_cli_args(
         expected_commit='CLI_COMMIT',
         expect_xdist=xdist,
         extra_args=[
-            '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
-        ] + (XDIST_ARGS if xdist else []),
+                       '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
+                   ] + (XDIST_ARGS if xdist else []),
     )
 
 
@@ -2204,7 +2204,7 @@ def test_stepwise(
         expect_progress=False,
     )
 
-    requests_mock.reset_mock()  # type: ignore
+    requests_mock.reset_mock()
 
     run_test_case(
         pytester,
