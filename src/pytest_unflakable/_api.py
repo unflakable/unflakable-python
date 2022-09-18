@@ -70,18 +70,11 @@ class CreateTestSuiteRunRequest(TypedDict):
     test_runs: List[TestRunRecord]
 
 
-class TestSuiteRunSummary(TypedDict):
+class TestSuiteRunPendingSummary(TypedDict):
     run_id: str
     suite_id: str
     branch: NotRequired[Optional[str]]
     commit: NotRequired[Optional[str]]
-    start_time: str
-    end_time: str
-    num_tests: int
-    num_pass: int
-    num_fail: int
-    num_flake: int
-    num_quarantined: int
 
 
 def create_test_suite_run(
@@ -91,7 +84,7 @@ def create_test_suite_run(
         base_url: Optional[str],
         insecure_disable_tls_validation: bool,
         logger: logging.Logger,
-) -> TestSuiteRunSummary:
+) -> TestSuiteRunPendingSummary:
     logger.debug(f'creating test suite run {pprint.pformat(request)}')
 
     run_response = requests.post(
@@ -109,7 +102,7 @@ def create_test_suite_run(
     )
     run_response.raise_for_status()
 
-    summary: TestSuiteRunSummary = run_response.json()
+    summary: TestSuiteRunPendingSummary = run_response.json()
     logger.debug(f'received response: {pprint.pformat(summary)}')
 
     return summary

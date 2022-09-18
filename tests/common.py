@@ -229,29 +229,13 @@ class GitMock:
 def mock_create_test_suite_run_response(
         request: requests.Request,
         context: requests_mock.response._Context,
-) -> _api.TestSuiteRunSummary:
+) -> _api.TestSuiteRunPendingSummary:
     request_body: _api.CreateTestSuiteRunRequest = request.json()
     return {
         'run_id': MOCK_RUN_ID,
         'suite_id': MOCK_SUITE_ID,
         'branch': request_body.get('branch'),
         'commit': request_body.get('commit'),
-        'start_time': request_body['start_time'],
-        'end_time': request_body['end_time'],
-        'num_tests': len(request_body['test_runs']),
-        'num_pass': len(
-            [run for run in request_body['test_runs'] if
-             all([attempt['result'] == 'pass' for attempt in run['attempts']])]),
-        'num_fail': len(
-            [run for run in request_body['test_runs'] if
-             all([attempt['result'] == 'fail' for attempt in run['attempts']])]),
-        'num_flake': len(
-            [run for run in request_body['test_runs'] if
-             any([attempt['result'] == 'pass' for attempt in run['attempts']]) and any(
-                 [attempt['result'] == 'fail' for attempt in run['attempts']])]),
-        'num_quarantined': len(
-            [run for run in request_body['test_runs'] if
-             all([attempt['result'] == 'quarantined' for attempt in run['attempts']])]),
     }
 
 
@@ -523,20 +507,6 @@ def run_test_case(
         create_test_suite_run_body: _api.CreateTestSuiteRunRequest = (
             create_test_suite_run_request.json()
         )
-
-        assert_regex(TIMESTAMP_REGEX, create_test_suite_run_body['start_time'])
-        assert_regex(TIMESTAMP_REGEX, create_test_suite_run_body['end_time'])
-
-        actual_test_runs = {
-            (test_run_record['filename'], tuple(test_run_record['name'])): [
-                attempt['result'] for attempt in test_run_record['attempts']
-            ]
-            for test_run_record in create_test_suite_run_body['test_runs']
-        }
-        assert actual_test_runs == expected_uploaded_test_runs
-
-        # Make sure there aren't any duplicate test keys.
-        assert len(create_test_suite_run_body['test_runs']) == len(actual_test_runs)
 
         if expected_commit is not None:
             assert create_test_suite_run_body['commit'] == expected_commit

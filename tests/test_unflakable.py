@@ -1216,8 +1216,8 @@ def test_git_cli_args(
         expected_commit='CLI_COMMIT',
         expect_xdist=xdist,
         extra_args=[
-                       '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
-                   ] + (XDIST_ARGS if xdist else []),
+            '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
+        ] + (XDIST_ARGS if xdist else []),
     )
 
 
