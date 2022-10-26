@@ -10,7 +10,6 @@ from typing import (
 import logging
 import pprint
 
-import py
 import pytest
 import _pytest
 import sys
@@ -27,6 +26,7 @@ from ._api import (
 )
 
 if TYPE_CHECKING:
+    import py
     from typing import Literal
 
     # Most of these types aren't defined or exported in older versions of pytest, but we only need
@@ -35,15 +35,16 @@ if TYPE_CHECKING:
     CallPhase = Literal['setup', 'call', 'teardown']
     CollectReport = pytest.CollectReport
     Config = pytest.Config
+    PathCompat = Union[py.path.local, Path]
 else:
     CallInfo = object
     CallPhase = str
     CollectReport = object
     Config = object
+    PathCompat = object
 
 TestPathAndName = Tuple[str, Tuple[str, ...]]
 QuarantinedTests = Set[TestPathAndName]
-PathCompat = Union[py.path.local, Path]
 
 
 class QuarantineMode(Enum):
