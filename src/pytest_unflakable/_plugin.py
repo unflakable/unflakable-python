@@ -67,7 +67,7 @@ def node_path(session: Union[pytest.Item, pytest.Session]) -> PathCompat:
 
 def relative_to(path: PathCompat, base: PathCompat) -> str:
     if hasattr(path, 'relative_to'):
-        return str(path.relative_to(base))  # type: ignore
+        return str(path.relative_to(base))
     else:
         return str(path.relto(base))  # type: ignore
 
