@@ -1,6 +1,6 @@
 """Unflakable plugin for PyTest."""
 
-#  Copyright (c) 2022 Developer Innovations, LLC
+#  Copyright (c) 2022-2023 Developer Innovations, LLC
 
 import argparse
 

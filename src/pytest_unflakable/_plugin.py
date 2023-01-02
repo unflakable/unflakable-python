@@ -1,5 +1,5 @@
 """Plugin implementation."""
-#  Copyright (c) 2022 Developer Innovations, LLC
+#  Copyright (c) 2022-2023 Developer Innovations, LLC
 
 from enum import Enum
 from pathlib import Path

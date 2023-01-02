@@ -1,6 +1,6 @@
 """Tests for pytest_unflakable plugin."""
 
-#  Copyright (c) 2022 Developer Innovations, LLC
+#  Copyright (c) 2022-2023 Developer Innovations, LLC
 
 import pytest
 import requests_mock
