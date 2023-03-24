@@ -57,7 +57,7 @@ jobs:
           python -m build
 
   pytest_integration_tests:
-    name: "PyTest Integration Tests: ${{ matrix.tox_env }}-${{ matrix.os }}"
+    name: "PyTest Integration Tests: py${{ matrix.python }}-${{ matrix.tox_env }}-${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
     needs:
       # Don't incur the cost of the test matrix if the basic build fails.
@@ -66,56 +66,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python:
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
         tox_env:
-          - py37-pytest62
-          - py37-pytest70
-          - py37-pytest71
-          - py37-pytest72
-          - py38-pytest62
-          - py38-pytest70
-          - py38-pytest71
-          - py38-pytest72
-          - py39-pytest62
-          - py39-pytest70
-          - py39-pytest71
-          - py39-pytest72
-          - py310-pytest62
-          - py310-pytest70
-          - py310-pytest71
-          - py310-pytest72
-        include:
-          - tox_env: "py37-pytest62"
-            python: "3.7"
-          - tox_env: "py37-pytest70"
-            python: "3.7"
-          - tox_env: "py37-pytest71"
-            python: "3.7"
-          - tox_env: "py37-pytest72"
-            python: "3.7"
-          - tox_env: "py38-pytest62"
-            python: "3.8"
-          - tox_env: "py38-pytest70"
-            python: "3.8"
-          - tox_env: "py38-pytest71"
-            python: "3.8"
-          - tox_env: "py38-pytest72"
-            python: "3.8"
-          - tox_env: "py39-pytest62"
-            python: "3.9"
-          - tox_env: "py39-pytest70"
-            python: "3.9"
-          - tox_env: "py39-pytest71"
-            python: "3.9"
-          - tox_env: "py39-pytest72"
-            python: "3.9"
-          - tox_env: "py310-pytest62"
-            python: "3.10"
-          - tox_env: "py310-pytest70"
-            python: "3.10"
-          - tox_env: "py310-pytest71"
-            python: "3.10"
-          - tox_env: "py310-pytest72"
-            python: "3.10"
+          - pytest62
+          - pytest70
+          - pytest71
+          - pytest72
 
     steps:
       - uses: actions/checkout@v3
@@ -133,7 +93,10 @@ jobs:
       - name: Test
         run: |
           UNFLAKABLE_API_KEY=${{ secrets.UNFLAKABLE_API_KEY }} \
-          tox -e ${{ matrix.tox_env }} --override testenv.pass_env=UNFLAKABLE_API_KEY -- \
+          tox -e ${{ matrix.tox_env }} \
+            --override testenv.pass_env=UNFLAKABLE_API_KEY \
+            --override testenv.basepython=python${{ matrix.python }} \
+            -- \
             --enable-unflakable \
             --test-suite-id 2AT4xgduQdwkVKSaO0qJ2Dqm2JY \
             -s \
