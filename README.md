@@ -4,8 +4,6 @@
   </a>
 </p>
 
-[![Twitter](https://img.shields.io/twitter/url?label=%40unflakable&style=social&url=https%3A%2F%2Ftwitter.com%2Funflakable)](https://twitter.com/unflakable)
-
 # Official Unflakable Plugins for Python
 
 This repository contains the official [Unflakable](https://unflakable.com) plugins for Python.
