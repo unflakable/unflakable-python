@@ -22,7 +22,7 @@ for running `unittest` tests.
 This plugin maintains compatibility with the PyTest and Python versions listed below:
 
 ![Python versions](https://img.shields.io/pypi/pyversions/pytest-unflakable)
-![PyTest versions](https://img.shields.io/badge/pytest-6.2%20%7C%207.0%20%7C%207.1%20%7C%207.2-blue)
+![PyTest versions](https://img.shields.io/badge/pytest-6.2%20%7C%207.0%20%7C%207.1%20%7C%207.2%20%7C%207.3%20%7C%207.4-blue)
 
 ## Contributing
 

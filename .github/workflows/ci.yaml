@@ -77,6 +77,8 @@ jobs:
           - pytest70
           - pytest71
           - pytest72
+          - pytest73
+          - pytest74
 
     steps:
       - uses: actions/checkout@v3
