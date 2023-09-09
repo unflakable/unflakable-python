@@ -8,16 +8,13 @@ from typing import (
 )
 
 import logging
-import pprint
 
 import pytest
 import _pytest
-import sys
 from time import time
 from datetime import datetime, timezone
 
 from ._api import (
-    get_test_suite_manifest,
     create_test_suite_run,
     build_test_suite_run_url,
     CreateTestSuiteRunRequest,
@@ -152,6 +149,30 @@ class UnflakableReport(_pytest.reports.BaseReport):
 ItemReports = Dict[CallPhase, UnflakableReport]
 
 
+class UnflakableXdistHooks:
+    logger: logging.Logger
+
+    def __init__(
+            self,
+            logger: logging.Logger,
+            worker_manifest: Optional[TestSuiteManifest],
+    ):
+        self.logger = logger
+        self.manifest = worker_manifest
+
+    # This is a `xdist.workermanage.WorkerController`, but pytest-xdist doesn't provide types.
+    def pytest_configure_node(self, node: Any) -> None:
+        """
+        Hook called by pytest-xdist to configure each worker node.
+
+        We leverage this hook to send the manifest to the worker.
+        """
+        nodeid = node.workerinput['workerid']
+        self.logger.debug(f'called hook pytest_configure_node: {nodeid}')
+        if self.manifest is not None:
+            node.workerinput['unflakable_manifest'] = self.manifest
+
+
 class UnflakablePlugin:
     api_key: str
     base_url: Optional[str]
@@ -186,7 +207,7 @@ class UnflakablePlugin:
             test_suite_id: str,
             upload_results: bool,
             logger: logging.Logger,
-            worker_manifest: Optional[TestSuiteManifest],
+            manifest: Optional[TestSuiteManifest],
             is_xdist_worker: bool,
     ):
         self.api_key = api_key
@@ -203,26 +224,7 @@ class UnflakablePlugin:
         self.is_xdist_worker = is_xdist_worker
         self.item_reports = {}
 
-        self.manifest = worker_manifest
-        if self.manifest is None:
-            try:
-                self.manifest = get_test_suite_manifest(
-                    test_suite_id=self.test_suite_id,
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    insecure_disable_tls_validation=self.insecure_disable_tls_validation,
-                    logger=self.logger,
-                )
-            # IOError is the base class for `requests.RequestException`.
-            except IOError as e:
-                sys.stderr.write(
-                    ('ERROR: Failed to get Unflakable manifest: %s\nTest failures will NOT be'
-                     ' quarantined.\n') % (repr(e))),
-        else:
-            logger.debug(
-                f'xdist worker received manifest for test suite {self.test_suite_id}: '
-                f'{pprint.pformat(self.manifest)}'
-            )
+        self.manifest = manifest
 
         self.quarantined_tests = set([
             (quarantined_test['filename'], tuple(quarantined_test['name'])) for
@@ -494,18 +496,6 @@ class UnflakablePlugin:
         self.logger.debug('called hook pytest_sessionstart')
         self.session = session
         self.start_time = time()
-
-    # This is a `xdist.workermanage.WorkerController`, but pytest-xdist doesn't provide types.
-    def pytest_configure_node(self, node: Any) -> None:
-        """
-        Hook called by pytest-xdist to configure each worker node.
-
-        We leverage this hook to send the manifest to the worker.
-        """
-        nodeid = node.workerinput['workerid']
-        self.logger.debug(f'called hook pytest_configure_node: {nodeid}')
-        if self.manifest is not None:
-            node.workerinput['unflakable_manifest'] = self.manifest
 
     def _build_test_suite_run_request(
             self,

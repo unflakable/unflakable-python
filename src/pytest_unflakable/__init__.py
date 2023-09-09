@@ -5,13 +5,16 @@
 import argparse
 
 import os
+import pprint
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 import logging
 
+from ._api import get_test_suite_manifest
 from ._git import get_current_git_commit, get_current_git_branch
-from ._plugin import UnflakablePlugin, QuarantineMode
+from ._plugin import UnflakablePlugin, QuarantineMode, UnflakableXdistHooks
 
 if TYPE_CHECKING:
     Config = pytest.Config
@@ -130,7 +133,7 @@ def pytest_configure(config: Config) -> None:
     if config.getoption('unflakable_suite_id') is None:
         raise pytest.UsageError('missing required argument --test-suite-id')
 
-    # pytest-xdist workers don't make API calls and amy not have the API key available.
+    # pytest-xdist workers don't make API calls and may not have the API key available.
     if is_xdist_worker:
         api_key = ''
     elif config.option.unflakable_api_key_path is not None:
@@ -143,6 +146,7 @@ def pytest_configure(config: Config) -> None:
 
     branch = config.option.unflakable_branch
     commit = config.option.unflakable_commit
+    test_suite_id = config.option.unflakable_suite_id
     git_auto_detect = not config.getoption('unflakable_no_git_auto_detect', False)
     if git_auto_detect and not is_xdist_worker:
         if commit is None:
@@ -153,10 +157,34 @@ def pytest_configure(config: Config) -> None:
             branch = get_current_git_branch(commit, logger)
             logger.debug('auto-detected branch `%s`', branch)
 
+    insecure_disable_tls_validation = config.getoption(
+        'unflakable_insecure_disable_tls_validation', False)
+    manifest = None
     if is_xdist_worker and 'unflakable_manifest' in config.workerinput:  # type: ignore
-        worker_manifest = config.workerinput['unflakable_manifest']  # type: ignore
+        manifest = config.workerinput['unflakable_manifest']  # type: ignore
+        logger.debug(
+            f'xdist worker received manifest for test suite {test_suite_id}: '
+            f'{pprint.pformat(manifest)}'
+        )
     else:
-        worker_manifest = None
+        try:
+            manifest = get_test_suite_manifest(
+                test_suite_id=test_suite_id,
+                api_key=api_key,
+                base_url=config.option.unflakable_base_url,
+                insecure_disable_tls_validation=insecure_disable_tls_validation,
+                logger=logger,
+            )
+        # IOError is the base class for `requests.RequestException`.
+        except IOError as e:
+            sys.stderr.write(
+                ('ERROR: Failed to get Unflakable manifest: %s\nTest failures will NOT be'
+                 ' quarantined.\n') % (repr(e))),
+
+    if config.pluginmanager.hasplugin('xdist'):
+        config.pluginmanager.register(
+            UnflakableXdistHooks(logger=logger, worker_manifest=manifest)
+        )
 
     config.pluginmanager.register(UnflakablePlugin(
         api_key=api_key,
@@ -164,13 +192,12 @@ def pytest_configure(config: Config) -> None:
         branch=branch,
         commit=commit,
         failure_retries=config.option.unflakable_failure_retries,
-        insecure_disable_tls_validation=config.getoption(
-            'unflakable_insecure_disable_tls_validation', False),
+        insecure_disable_tls_validation=insecure_disable_tls_validation,
         quarantine_mode=quarantine_mode,
-        test_suite_id=config.option.unflakable_suite_id,
+        test_suite_id=test_suite_id,
         upload_results=not is_xdist_worker and (
             not config.getoption('unflakable_no_upload_results', False)),
         logger=logger,
-        worker_manifest=worker_manifest,
+        manifest=manifest,
         is_xdist_worker=is_xdist_worker,
     ))

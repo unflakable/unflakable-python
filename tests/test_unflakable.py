@@ -1,4 +1,5 @@
 """Tests for pytest_unflakable plugin."""
+import os
 
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 
@@ -38,15 +39,43 @@ def _3platform() -> None:
     pass
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
+TEST_PARAMS_XDIST_ARG_NAMES = ['xdist']
+TEST_PARAMS_XDIST_ARG_VALUES = (
+        [
+            pytest.param(False, id='not_xdist'),
+        ] + ([
+                 pytest.param(True, id='xdist'),
+             ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
+
+TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES = ['verbose', 'xdist']
+TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES = (
+        [
+            pytest.param(False, False, id='not_verbose-not_xdist'),
+            pytest.param(True, False, id='verbose-not_xdist'),
+        ] + ([
+                 pytest.param(False, True, id='not_verbose-xdist'),
+                 pytest.param(True, True, id='verbose-xdist'),
+             ] if os.environ.get('TEST_XDIST') == '1' else [])
+)
+
+TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES = ['verbose', 'quarantined', 'xdist']
+TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES = (
+        [
+            pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
+            pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
+            pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
+            pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
+        ] + ([
+                 pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
+                 pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
+                 pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
+                 pytest.param(True, True, True, id='verbose-quarantined-xdist'),
+             ] if os.environ.get('TEST_XDIST') == '1' else [])
+)
+
+
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_flaky(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -93,15 +122,7 @@ def test_flaky(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_flaky(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -154,15 +175,7 @@ def test_quarantine_flaky(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_flaky_until_last_attempt(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -210,15 +223,7 @@ def test_flaky_until_last_attempt(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_all_statuses(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -316,15 +321,7 @@ def test_all_statuses(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_class_all_statuses(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -423,15 +420,7 @@ def test_class_all_statuses(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_nested_classes(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -526,15 +515,7 @@ def test_nested_classes(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_unittest_all_statuses(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -639,15 +620,7 @@ def test_unittest_all_statuses(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_multiple_files(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -713,15 +686,7 @@ def test_multiple_files(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_ignore_failures(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -779,15 +744,7 @@ def test_quarantine_mode_ignore_failures(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_no_quarantine(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -845,15 +802,7 @@ def test_quarantine_mode_no_quarantine(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_skip_tests(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -906,15 +855,7 @@ def test_quarantine_mode_skip_tests(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_parameterized(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -976,10 +917,7 @@ def test_parameterized(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_empty_collection(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1000,15 +938,7 @@ def test_empty_collection(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_all_skipped(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1038,15 +968,7 @@ def test_all_skipped(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_skipped_and_pass(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1089,10 +1011,7 @@ def test_skipped_and_pass(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_git_detached_head(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1120,10 +1039,7 @@ def test_git_detached_head(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_git_repo(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1153,10 +1069,7 @@ def test_no_git_repo(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_git_auto_detect(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1186,10 +1099,7 @@ def test_no_git_auto_detect(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_git_cli_args(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1216,20 +1126,12 @@ def test_git_cli_args(
         expected_commit='CLI_COMMIT',
         expect_xdist=xdist,
         extra_args=[
-            '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
-        ] + (XDIST_ARGS if xdist else []),
+                       '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
+                   ] + (XDIST_ARGS if xdist else []),
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_no_retries(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1268,10 +1170,7 @@ def test_no_retries(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_api_key_environ(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1303,10 +1202,7 @@ def test_api_key_environ(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_plugin_disabled(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1347,10 +1243,7 @@ def test_plugin_disabled(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_upload_results(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1403,15 +1296,7 @@ def test_no_upload_results(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_select_subset(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1489,19 +1374,8 @@ def test_collect_only(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_setup_failure(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1573,19 +1447,8 @@ def test_setup_failure(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_setup_flaky(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1661,19 +1524,8 @@ def test_setup_flaky(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_teardown_failure(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1755,19 +1607,8 @@ def test_teardown_failure(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_teardown_flaky(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1847,15 +1688,7 @@ def test_teardown_flaky(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_xfail_pass(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1892,15 +1725,7 @@ def test_xfail_pass(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'xdist'],
-    [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_xfail_fail(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -1942,19 +1767,8 @@ def test_xfail_fail(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_xfail_fail_strict(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -2013,19 +1827,8 @@ def test_xfail_fail_strict(
     )
 
 
-@pytest.mark.parametrize(
-    ['verbose', 'quarantined', 'xdist'],
-    [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-    ],
-)
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_xfail_flaky_strict(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -2089,10 +1892,7 @@ def test_xfail_flaky_strict(
     )
 
 
-@pytest.mark.parametrize(
-    ['xdist'],
-    [pytest.param(False, id='not_xdist'), pytest.param(True, id='xdist')],
-)
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_warnings(
         pytester: pytest.Pytester,
         requests_mock: requests_mock.Mocker,
@@ -2244,6 +2044,7 @@ def test_stepwise(
     )
 
 
+@pytest.mark.skipif(os.environ.get('TEST_XDIST') != '1', reason='xdist is disabled')
 @pytest.mark.parametrize(
     ['verbose', 'quarantined'],
     [

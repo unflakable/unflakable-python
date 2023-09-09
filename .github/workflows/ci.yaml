@@ -74,11 +74,17 @@ jobs:
           - "3.11"
         tox_env:
           - pytest62
+          - pytest62-xdist
           - pytest70
+          - pytest70-xdist
           - pytest71
+          - pytest71-xdist
           - pytest72
+          - pytest72-xdist
           - pytest73
+          - pytest73-xdist
           - pytest74
+          - pytest74-xdist
 
     steps:
       - uses: actions/checkout@v3
