@@ -1,13 +1,14 @@
 """Tests for pytest_unflakable plugin."""
 
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
+import itertools
+import re
 import subprocess
 from enum import Enum
-from typing import List, Optional, Tuple, Dict, Iterable, cast, Callable, Sequence, TYPE_CHECKING
+from typing import (TYPE_CHECKING, Callable, Dict, Iterable, List, Optional,
+                    Sequence, Tuple, cast)
 
-import itertools
 import pytest
-import re
 import requests
 import requests_mock
 from _pytest.config import ExitCode

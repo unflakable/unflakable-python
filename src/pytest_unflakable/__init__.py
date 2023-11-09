@@ -3,18 +3,17 @@
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 
 import argparse
-
+import logging
 import os
 import pprint
 import sys
 from typing import TYPE_CHECKING
 
 import pytest
-import logging
 
 from ._api import get_test_suite_manifest
-from ._git import get_current_git_commit, get_current_git_branch
-from ._plugin import UnflakablePlugin, QuarantineMode, UnflakableXdistHooks
+from ._git import get_current_git_branch, get_current_git_commit
+from ._plugin import QuarantineMode, UnflakablePlugin, UnflakableXdistHooks
 
 if TYPE_CHECKING:
     Config = pytest.Config

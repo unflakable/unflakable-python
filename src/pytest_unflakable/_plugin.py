@@ -1,30 +1,26 @@
 """Plugin implementation."""
+
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 
+import logging
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import (
-    Any, Dict, List, Union, Tuple, Mapping, Optional, cast, Generator, Set, TYPE_CHECKING
-)
-
-import logging
-
-import pytest
-import _pytest
 from time import time
-from datetime import datetime, timezone
+from typing import (TYPE_CHECKING, Any, Dict, Generator, List, Mapping,
+                    Optional, Set, Tuple, Union, cast)
 
-from ._api import (
-    create_test_suite_run,
-    build_test_suite_run_url,
-    CreateTestSuiteRunRequest,
-    TestRunAttemptRecord,
-    TestRunRecord, TestAttemptResult, TestSuiteManifest,
-)
+import _pytest
+import pytest
+
+from ._api import (CreateTestSuiteRunRequest, TestAttemptResult,
+                   TestRunAttemptRecord, TestRunRecord, TestSuiteManifest,
+                   build_test_suite_run_url, create_test_suite_run)
 
 if TYPE_CHECKING:
-    import py
     from typing import Literal
+
+    import py
 
     # Most of these types aren't defined or exported in older versions of pytest, but we only need
     # the type checking to work on newer versions.
@@ -311,7 +307,7 @@ class UnflakablePlugin:
         test_filename = relative_to(node_path(item), node_path(item.session))
         test_name = item_name(item)
         is_quarantined = (test_filename, test_name) in self.quarantined_tests and (
-                self.quarantine_mode == QuarantineMode.IGNORE_FAILURES)
+            self.quarantine_mode == QuarantineMode.IGNORE_FAILURES)
 
         assert self.session
 
@@ -449,9 +445,9 @@ class UnflakablePlugin:
                     # empty string here to avoid double-counting.
                     '' if (report.unflakable_is_quarantined
                            and self.quarantine_mode == QuarantineMode.IGNORE_FAILURES) or (
-                              # If only the `teardown` phase has failed in the past, then don't
-                              # treat the test as flaky just because the `call` phase passed.
-                              not report.unflakable_prior_non_teardown_failures)
+                        # If only the `teardown` phase has failed in the past, then don't
+                        # treat the test as flaky just because the `call` phase passed.
+                        not report.unflakable_prior_non_teardown_failures)
                     else 'flaky'
                 ),
                 'R',
@@ -539,7 +535,7 @@ class UnflakablePlugin:
                     attempt_result = (
                         cast(TestAttemptResult, 'quarantined')
                         if is_quarantined and (
-                                self.quarantine_mode == QuarantineMode.IGNORE_FAILURES) else cast(
+                            self.quarantine_mode == QuarantineMode.IGNORE_FAILURES) else cast(
                             TestAttemptResult, 'fail')
                     )
                 else:
@@ -553,16 +549,16 @@ class UnflakablePlugin:
                     'end_time': _ts_to_rfc3339(end_time) if end_time is not None else None,
                     'duration_ms': int(
                         (
-                                (
-                                    item_attempt_reports['setup'].duration
-                                    if 'setup' in item_attempt_reports else 0.
-                                ) + (
-                                    item_attempt_reports['call'].duration
-                                    if 'call' in item_attempt_reports else 0.
-                                ) + (
-                                    item_attempt_reports['teardown'].duration
-                                    if 'teardown' in item_attempt_reports else 0.
-                                )
+                            (
+                                item_attempt_reports['setup'].duration
+                                if 'setup' in item_attempt_reports else 0.
+                            ) + (
+                                item_attempt_reports['call'].duration
+                                if 'call' in item_attempt_reports else 0.
+                            ) + (
+                                item_attempt_reports['teardown'].duration
+                                if 'teardown' in item_attempt_reports else 0.
+                            )
                         ) * 1000.
                     ),
                     'result': attempt_result,

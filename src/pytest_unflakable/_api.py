@@ -2,13 +2,13 @@
 
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 
-from typing import List, Optional, TYPE_CHECKING
-
-import sys
 import logging
-import pkg_resources
 import platform
 import pprint
+import sys
+from typing import TYPE_CHECKING, List, Optional
+
+import pkg_resources
 import requests
 
 if TYPE_CHECKING:

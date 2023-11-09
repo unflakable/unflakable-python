@@ -1,8 +1,9 @@
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
+
 import logging
-from typing import Optional, List
-from subprocess import run
 import sys
+from subprocess import run
+from typing import List, Optional
 
 GIT_ERROR_STR = 'WARNING: Unflakable failed to auto-detect current git branch and commit'
 GIT_ERROR_HINT = (

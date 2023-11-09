@@ -1,19 +1,19 @@
 """Tests for pytest_unflakable plugin."""
-import os
 
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
+
+import os
+import platform
+import sys
 
 import pytest
 import requests_mock
 from _pytest.config import ExitCode
-import sys
-import platform
 
 from pytest_unflakable import _api
 
-from .common import (
-    GitMock, run_test_case, _TestAttemptOutcome, _TestResultCounts, MonkeyPatch
-)
+from .common import (GitMock, MonkeyPatch, _TestAttemptOutcome,
+                     _TestResultCounts, run_test_case)
 
 requests_mock.mock.case_sensitive = True
 
@@ -41,37 +41,37 @@ def _3platform() -> None:
 
 TEST_PARAMS_XDIST_ARG_NAMES = ['xdist']
 TEST_PARAMS_XDIST_ARG_VALUES = (
-        [
-            pytest.param(False, id='not_xdist'),
-        ] + ([
-                 pytest.param(True, id='xdist'),
-             ] if os.environ.get('TEST_XDIST') == '1' else [])
+    [
+        pytest.param(False, id='not_xdist'),
+    ] + ([
+        pytest.param(True, id='xdist'),
+    ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
 TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES = ['verbose', 'xdist']
 TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES = (
-        [
-            pytest.param(False, False, id='not_verbose-not_xdist'),
-            pytest.param(True, False, id='verbose-not_xdist'),
-        ] + ([
-                 pytest.param(False, True, id='not_verbose-xdist'),
-                 pytest.param(True, True, id='verbose-xdist'),
-             ] if os.environ.get('TEST_XDIST') == '1' else [])
+    [
+        pytest.param(False, False, id='not_verbose-not_xdist'),
+        pytest.param(True, False, id='verbose-not_xdist'),
+    ] + ([
+        pytest.param(False, True, id='not_verbose-xdist'),
+        pytest.param(True, True, id='verbose-xdist'),
+    ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
 TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES = ['verbose', 'quarantined', 'xdist']
 TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES = (
-        [
-            pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-            pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-            pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-            pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
-        ] + ([
-                 pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-                 pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-                 pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-                 pytest.param(True, True, True, id='verbose-quarantined-xdist'),
-             ] if os.environ.get('TEST_XDIST') == '1' else [])
+    [
+        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
+        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
+        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
+        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
+    ] + ([
+        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
+        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
+        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
+        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
+    ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
 
@@ -1126,8 +1126,8 @@ def test_git_cli_args(
         expected_commit='CLI_COMMIT',
         expect_xdist=xdist,
         extra_args=[
-                       '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
-                   ] + (XDIST_ARGS if xdist else []),
+            '--branch', 'CLI_BRANCH', '--commit', 'CLI_COMMIT'
+        ] + (XDIST_ARGS if xdist else []),
     )
 
 
