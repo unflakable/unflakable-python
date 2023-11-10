@@ -159,8 +159,8 @@ def pytest_configure(config: Config) -> None:
     insecure_disable_tls_validation = config.getoption(
         'unflakable_insecure_disable_tls_validation', False)
     manifest = None
-    if is_xdist_worker and 'unflakable_manifest' in config.workerinput:  # type: ignore
-        manifest = config.workerinput['unflakable_manifest']  # type: ignore
+    if is_xdist_worker:
+        manifest = config.workerinput.get('unflakable_manifest')  # type: ignore
         logger.debug(
             f'xdist worker received manifest for test suite {test_suite_id}: '
             f'{pprint.pformat(manifest)}'

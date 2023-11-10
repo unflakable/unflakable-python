@@ -165,8 +165,7 @@ class UnflakableXdistHooks:
         """
         nodeid = node.workerinput['workerid']
         self.logger.debug(f'called hook pytest_configure_node: {nodeid}')
-        if self.manifest is not None:
-            node.workerinput['unflakable_manifest'] = self.manifest
+        node.workerinput['unflakable_manifest'] = self.manifest
 
 
 class UnflakablePlugin:
