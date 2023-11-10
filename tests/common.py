@@ -244,10 +244,11 @@ def assert_regex(regex: str, string: str) -> None:
     assert re.match(regex, string) is not None, f'`{string}` does not match regex {regex}'
 
 
+@requests_mock.Mocker(case_sensitive=True, kw='requests_mocker')
 def run_test_case(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         manifest: _api.TestSuiteManifest,
+        requests_mocker: requests_mock.Mocker,
         expected_test_file_outcomes: List[
             Tuple[str, List[Tuple[Tuple[str, ...], List[_TestAttemptOutcome]]]]],
         expected_test_result_counts: _TestResultCounts,
@@ -266,7 +267,7 @@ def run_test_case(
         expect_xdist: bool = False,
 ) -> None:
     api_key_path = pytester.makefile('', expected_api_key) if use_api_key_path else None
-    requests_mock.get(
+    requests_mocker.get(
         url='https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/manifest',
         request_headers={'Authorization': f'Bearer {expected_api_key}'},
         complete_qs=True,
@@ -274,7 +275,7 @@ def run_test_case(
         json=manifest,
     )
 
-    requests_mock.post(
+    requests_mocker.post(
         url='https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs',
         request_headers={
             'Authorization': f'Bearer {expected_api_key}',
@@ -482,7 +483,7 @@ def run_test_case(
         expected_test_result_counts.non_skipped_tests > 0) else [])
     )
 
-    assert requests_mock.call_count == (
+    assert requests_mocker.call_count == (
         (
             2 if expected_uploaded_test_runs is not None and (
                 expected_test_result_counts.non_skipped_tests > 0) else 1
@@ -491,7 +492,7 @@ def run_test_case(
 
     # Checked expected User-Agent. We do this here instead of using an `additional_matcher` to make
     # errors easier to diagnose.
-    for request in requests_mock.request_history:
+    for request in requests_mocker.request_history:
         assert_regex(
             r'^unflakable-pytest-plugin/.* \(PyTest .*; Python .*; Platform .*\)$',
             request.headers.get('User-Agent', '')
@@ -500,7 +501,7 @@ def run_test_case(
     if plugin_enabled and (
             expected_uploaded_test_runs is not None and
             expected_test_result_counts.non_skipped_tests > 0):
-        create_test_suite_run_request = requests_mock.request_history[1]
+        create_test_suite_run_request = requests_mocker.request_history[1]
         assert create_test_suite_run_request.url == (
             'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs')
         assert create_test_suite_run_request.method == 'POST'

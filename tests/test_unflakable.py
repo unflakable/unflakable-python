@@ -4,18 +4,17 @@
 
 import os
 import platform
+import re
 import sys
 
+import pkg_resources
 import pytest
-import requests_mock
 from _pytest.config import ExitCode
 
 from pytest_unflakable import _api
 
 from .common import (GitMock, MonkeyPatch, _TestAttemptOutcome,
                      _TestResultCounts, run_test_case)
-
-requests_mock.mock.case_sensitive = True
 
 # Run on 2 CPUs.
 XDIST_ARGS = ['-n', '2']
@@ -29,7 +28,15 @@ def _1python_version() -> None:
     pass
 
 
-@pytest.fixture(params=[f'pytest{_api.PYTEST_VERSION}'], autouse=True)
+__PYTEST_MINOR_VERSION_MATCH = re.match(
+    r'^([0-9]+\.[0-9]+)\..*$',
+    pkg_resources.get_distribution('pytest').version,
+)
+assert __PYTEST_MINOR_VERSION_MATCH is not None
+__PYTEST_MINOR_VERSION = __PYTEST_MINOR_VERSION_MATCH.group(1)
+
+
+@pytest.fixture(params=[f'pytest{__PYTEST_MINOR_VERSION}'], autouse=True)
 def _2pytest_version() -> None:
     pass
 
@@ -39,38 +46,46 @@ def _3platform() -> None:
     pass
 
 
+@pytest.fixture(
+    params=['xdist_installed' if os.environ.get('TEST_XDIST') == '1' else 'xdist_not_installed'],
+    autouse=True,
+)
+def _4xdist_installed() -> None:
+    pass
+
+
 TEST_PARAMS_XDIST_ARG_NAMES = ['xdist']
 TEST_PARAMS_XDIST_ARG_VALUES = (
     [
-        pytest.param(False, id='not_xdist'),
+        pytest.param(False, id='xdist_disabled'),
     ] + ([
-        pytest.param(True, id='xdist'),
+        pytest.param(True, id='xdist_enabled'),
     ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
 TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES = ['verbose', 'xdist']
 TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES = (
     [
-        pytest.param(False, False, id='not_verbose-not_xdist'),
-        pytest.param(True, False, id='verbose-not_xdist'),
+        pytest.param(False, False, id='not_verbose-xdist_disabled'),
+        pytest.param(True, False, id='verbose-xdist_disabled'),
     ] + ([
-        pytest.param(False, True, id='not_verbose-xdist'),
-        pytest.param(True, True, id='verbose-xdist'),
+        pytest.param(False, True, id='not_verbose-xdist_enabled'),
+        pytest.param(True, True, id='verbose-xdist_enabled'),
     ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
 TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_NAMES = ['verbose', 'quarantined', 'xdist']
 TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES = (
     [
-        pytest.param(False, False, False, id='not_verbose-not_quarantined-not_xdist'),
-        pytest.param(False, True, False, id='not_verbose-quarantined-not_xdist'),
-        pytest.param(True, False, False, id='verbose-not_quarantined-not_xdist'),
-        pytest.param(True, True, False, id='verbose-quarantined-not_xdist'),
+        pytest.param(False, False, False, id='not_verbose-not_quarantined-xdist_disabled'),
+        pytest.param(False, True, False, id='not_verbose-quarantined-xdist_disabled'),
+        pytest.param(True, False, False, id='verbose-not_quarantined-xdist_disabled'),
+        pytest.param(True, True, False, id='verbose-quarantined-xdist_disabled'),
     ] + ([
-        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist'),
-        pytest.param(False, True, True, id='not_verbose-quarantined-xdist'),
-        pytest.param(True, False, True, id='verbose-not_quarantined-xdist'),
-        pytest.param(True, True, True, id='verbose-quarantined-xdist'),
+        pytest.param(False, False, True, id='not_verbose-not_quarantined-xdist_enabled'),
+        pytest.param(False, True, True, id='not_verbose-quarantined-xdist_enabled'),
+        pytest.param(True, False, True, id='verbose-not_quarantined-xdist_enabled'),
+        pytest.param(True, True, True, id='verbose-quarantined-xdist_enabled'),
     ] if os.environ.get('TEST_XDIST') == '1' else [])
 )
 
@@ -78,7 +93,6 @@ TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES = (
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_flaky(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -98,7 +112,6 @@ def test_flaky(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             (
@@ -125,7 +138,6 @@ def test_flaky(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_flaky(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -145,7 +157,6 @@ def test_quarantine_flaky(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -178,7 +189,6 @@ def test_quarantine_flaky(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_flaky_until_last_attempt(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -198,7 +208,6 @@ def test_flaky_until_last_attempt(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             (
@@ -226,7 +235,6 @@ def test_flaky_until_last_attempt(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_all_statuses(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -276,7 +284,6 @@ def test_all_statuses(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -324,7 +331,6 @@ def test_all_statuses(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_class_all_statuses(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -374,7 +380,6 @@ def test_class_all_statuses(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -423,7 +428,6 @@ def test_class_all_statuses(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_nested_classes(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -478,7 +482,6 @@ def test_nested_classes(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -518,7 +521,6 @@ def test_nested_classes(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_unittest_all_statuses(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -574,7 +576,6 @@ def test_unittest_all_statuses(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -623,7 +624,6 @@ def test_unittest_all_statuses(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_multiple_files(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -653,7 +653,6 @@ def test_multiple_files(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -689,7 +688,6 @@ def test_multiple_files(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_ignore_failures(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -717,7 +715,6 @@ def test_quarantine_mode_ignore_failures(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -747,7 +744,6 @@ def test_quarantine_mode_ignore_failures(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_no_quarantine(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -775,7 +771,6 @@ def test_quarantine_mode_no_quarantine(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -805,7 +800,6 @@ def test_quarantine_mode_no_quarantine(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_quarantine_mode_skip_tests(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -833,7 +827,6 @@ def test_quarantine_mode_skip_tests(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -858,7 +851,6 @@ def test_quarantine_mode_skip_tests(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_parameterized(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -876,7 +868,6 @@ def test_parameterized(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -920,14 +911,12 @@ def test_parameterized(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_empty_collection(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
     pytester.makepyfile(test_input='')
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[],
         expected_test_result_counts=_TestResultCounts(),
@@ -941,7 +930,6 @@ def test_empty_collection(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_all_skipped(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -956,7 +944,6 @@ def test_all_skipped(
     """)
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[],
         expected_test_result_counts=_TestResultCounts(num_skipped=1),
@@ -971,7 +958,6 @@ def test_all_skipped(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_skipped_and_pass(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -991,7 +977,6 @@ def test_skipped_and_pass(
     subprocess_mock.update(branch='MOCK_BRANCH', commit='MOCK_COMMIT')
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             (
@@ -1014,7 +999,6 @@ def test_skipped_and_pass(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_git_detached_head(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1027,7 +1011,6 @@ def test_git_detached_head(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
@@ -1042,7 +1025,6 @@ def test_git_detached_head(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_git_repo(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1055,7 +1037,6 @@ def test_no_git_repo(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
@@ -1072,7 +1053,6 @@ def test_no_git_repo(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_git_auto_detect(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1085,7 +1065,6 @@ def test_no_git_auto_detect(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
@@ -1102,7 +1081,6 @@ def test_no_git_auto_detect(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_git_cli_args(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1115,7 +1093,6 @@ def test_git_cli_args(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
@@ -1134,7 +1111,6 @@ def test_git_cli_args(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_no_retries(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -1154,7 +1130,6 @@ def test_no_retries(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_flaky',), [_TestAttemptOutcome.FAILED])]),
@@ -1173,7 +1148,6 @@ def test_no_retries(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_api_key_environ(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         monkeypatch: MonkeyPatch,
         xdist: bool,
@@ -1187,7 +1161,6 @@ def test_api_key_environ(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_api_key='API_KEY_FROM_ENVIRON',
         expected_test_file_outcomes=[
@@ -1205,7 +1178,6 @@ def test_api_key_environ(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_plugin_disabled(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1226,7 +1198,6 @@ def test_plugin_disabled(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [
@@ -1246,7 +1217,6 @@ def test_plugin_disabled(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_no_upload_results(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1273,7 +1243,6 @@ def test_no_upload_results(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             (
@@ -1299,7 +1268,6 @@ def test_no_upload_results(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_select_subset(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -1320,7 +1288,6 @@ def test_select_subset(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             (
@@ -1347,7 +1314,6 @@ def test_select_subset(
 )
 def test_collect_only(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
 ) -> None:
@@ -1363,7 +1329,6 @@ def test_collect_only(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[],
         expected_test_result_counts=_TestResultCounts(num_collected=1),
@@ -1378,7 +1343,6 @@ def test_collect_only(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_setup_failure(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1405,7 +1369,6 @@ def test_setup_failure(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1451,7 +1414,6 @@ def test_setup_failure(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_setup_flaky(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1484,7 +1446,6 @@ def test_setup_flaky(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1528,7 +1489,6 @@ def test_setup_flaky(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_teardown_failure(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1556,7 +1516,6 @@ def test_teardown_failure(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1611,7 +1570,6 @@ def test_teardown_failure(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_teardown_flaky(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1645,7 +1603,6 @@ def test_teardown_flaky(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1691,7 +1648,6 @@ def test_teardown_flaky(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_xfail_pass(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -1709,7 +1665,6 @@ def test_xfail_pass(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_xfail',), [_TestAttemptOutcome.XFAILED])]),
@@ -1728,7 +1683,6 @@ def test_xfail_pass(
 @pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES, TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
 def test_xfail_fail(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         xdist: bool,
@@ -1747,7 +1701,6 @@ def test_xfail_fail(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': []},
         expected_test_file_outcomes=[
             ('test_input.py', [
@@ -1771,7 +1724,6 @@ def test_xfail_fail(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_xfail_fail_strict(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1791,7 +1743,6 @@ def test_xfail_fail_strict(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1831,7 +1782,6 @@ def test_xfail_fail_strict(
                          TEST_PARAMS_VERBOSE_QUARANTINED_XDIST_ARG_VALUES)
 def test_xfail_flaky_strict(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1858,7 +1808,6 @@ def test_xfail_flaky_strict(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
@@ -1895,7 +1844,6 @@ def test_xfail_flaky_strict(
 @pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
 def test_warnings(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         xdist: bool,
 ) -> None:
@@ -1914,7 +1862,6 @@ def test_warnings(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])]),
@@ -1940,7 +1887,6 @@ def test_warnings(
 )
 def test_stepwise(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -1973,7 +1919,6 @@ def test_stepwise(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             ('test_input.py', [
@@ -2004,11 +1949,8 @@ def test_stepwise(
         expect_progress=False,
     )
 
-    requests_mock.reset_mock()
-
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             ('test_input.py', [
@@ -2056,7 +1998,6 @@ def test_stepwise(
 )
 def test_xdist(
         pytester: pytest.Pytester,
-        requests_mock: requests_mock.Mocker,
         subprocess_mock: GitMock,
         verbose: bool,
         quarantined: bool,
@@ -2107,7 +2048,6 @@ def test_xdist(
 
     run_test_case(
         pytester,
-        requests_mock,
         manifest,
         expected_test_file_outcomes=[
             ('test_input1.py', [
@@ -2165,7 +2105,35 @@ def test_xdist(
         },
         expected_exit_code=ExitCode.TESTS_FAILED,
         verbose=verbose,
-        # Run on 2 CPUs.
-        extra_args=['-n', '2'],  # , '--debug'],
+        extra_args=XDIST_ARGS,
         expect_xdist=True,
+    )
+
+
+# Run should pass even if we fail to fetch the manifest.
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
+def test_fetch_failure(
+    pytester: pytest.Pytester,
+    subprocess_mock: GitMock,
+    xdist: bool,
+) -> None:
+    pytester.makepyfile(test_input="""
+        def test_pass():
+            pass
+    """)
+
+    subprocess_mock.update(branch=None, commit=None)
+
+    run_test_case(
+        pytester,
+        manifest=None,
+        expected_test_file_outcomes=[
+            ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
+        expected_test_result_counts=_TestResultCounts(num_passed=1),
+        expected_uploaded_test_runs={('test_input.py', ('test_pass',)): ['pass']},
+        expected_exit_code=ExitCode.OK,
+        expected_branch=None,
+        expected_commit=None,
+        expect_xdist=xdist,
+        extra_args=XDIST_ARGS if xdist else [],
     )
