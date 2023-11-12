@@ -142,8 +142,12 @@ def test_quarantine_flaky(
         verbose: bool,
         xdist: bool,
 ) -> None:
-    pytester.makepyfile(test_input="""
+    pytester.makepyfile(**{'folder/test_input': """
         first_invocation = True
+
+
+        def test_pass():
+            pass
 
 
         def test_flaky():
@@ -151,7 +155,7 @@ def test_quarantine_flaky(
             if first_invocation:
                 first_invocation = False
                 assert False
-    """)
+    """})
 
     subprocess_mock.update(branch='MOCK_BRANCH', commit='MOCK_COMMIT')
 
@@ -160,24 +164,28 @@ def test_quarantine_flaky(
         manifest={'quarantined_tests': [
             {
                 'test_id': 'MOCK_TEST_ID',
-                'filename': 'test_input.py',
+                'filename': 'folder/test_input.py',
                 'name': ['test_flaky']
             }
         ]},
         expected_test_file_outcomes=[
             (
-                'test_input.py',
+                os.path.join('folder', 'test_input.py'),
                 [
+                    (('test_pass',), [
+                        _TestAttemptOutcome.PASSED,
+                    ]),
                     (('test_flaky',), [
                         _TestAttemptOutcome.QUARANTINED,
                         _TestAttemptOutcome.RETRY_PASSED,
-                    ])
+                    ]),
                 ],
             ),
         ],
-        expected_test_result_counts=_TestResultCounts(num_quarantined=1),
+        expected_test_result_counts=_TestResultCounts(num_passed=1, num_quarantined=1),
         expected_uploaded_test_runs={
-            ('test_input.py', ('test_flaky',)): ['quarantined', 'pass'],
+            ('folder/test_input.py', ('test_pass',)): ['pass'],
+            ('folder/test_input.py', ('test_flaky',)): ['quarantined', 'pass'],
         },
         expected_exit_code=ExitCode.OK,
         expect_xdist=xdist,

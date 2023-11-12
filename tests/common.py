@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 from enum import Enum
+from pathlib import Path
 from typing import (TYPE_CHECKING, Callable, Dict, Iterable, List, Optional,
                     Sequence, Tuple, cast)
 from unittest import mock
@@ -422,11 +423,11 @@ def run_test_case(
                 '^',
                 r'\[gw[0-9]\]\x1b\[36m \[ *[0-9]+%\] \x1b\[0m',
                 re.escape(VERBOSE_TEST_ATTEMPT_OUTCOME_CHARS[test_outcome]),
-                ' %s ' % (re.escape('::'.join((test_file,) + test_name))),
+                ' %s ' % (re.escape('::'.join((Path(test_file).as_posix(),) + test_name))),
                 '$',
             ] if expect_xdist else [
                 '^',
-                '%s ' % (re.escape('::'.join((test_file,) + test_name))),
+                '%s ' % (re.escape('::'.join((Path(test_file).as_posix(),) + test_name))),
                 re.escape(VERBOSE_TEST_ATTEMPT_OUTCOME_CHARS[test_outcome]),
                 # Statuses may be truncated when test names are long (e.g., when there are parent
                 # classes) to keep lines under 80 chars. Consequently, we assume anything can appear

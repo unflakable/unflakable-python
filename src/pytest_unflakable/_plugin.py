@@ -59,11 +59,11 @@ def node_path(session: Union[pytest.Item, pytest.Session]) -> PathCompat:
         return session.fspath
 
 
-def relative_to(path: PathCompat, base: PathCompat) -> str:
+def posix_relative_to(path: PathCompat, base: PathCompat) -> str:
     if hasattr(path, 'relative_to'):
-        return str(path.relative_to(base))
+        return path.relative_to(base).as_posix()
     else:
-        return str(path.relto(base))  # type: ignore
+        return Path(path.relto(base)).as_posix()  # type: ignore
 
 
 def item_name(item: _pytest.nodes.Node) -> Tuple[str, ...]:
@@ -243,7 +243,7 @@ class UnflakablePlugin:
     ) -> None:
         self.logger.debug('called hook pytest_collection_modifyitems')
         for idx, item in enumerate(items):
-            test_path = relative_to(node_path(item), node_path(session))
+            test_path = posix_relative_to(node_path(item), node_path(session))
             test_name = item_name(item)
             if (test_path, test_name) in self.quarantined_tests:
                 self.logger.info(
@@ -261,14 +261,14 @@ class UnflakablePlugin:
         ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
 
         assert self.session
-        test_filename = relative_to(node_path(item), node_path(self.session))
+        test_filename = posix_relative_to(node_path(item), node_path(self.session))
         test_name = item_name(item)
         for attempt in range(item.config.option.unflakable_failure_retries + 1):
             if attempt > 0:
                 self.logger.info(
                     'retrying test `%s` in file %s (attempt %d of %d)',
                     '.'.join(test_name),
-                    relative_to(node_path(item), node_path(item.session)),
+                    posix_relative_to(node_path(item), node_path(item.session)),
                     attempt + 1,
                     item.config.option.unflakable_failure_retries + 1,
                 )
@@ -304,7 +304,7 @@ class UnflakablePlugin:
         if item.parent:
             pass
 
-        test_filename = relative_to(node_path(item), node_path(item.session))
+        test_filename = posix_relative_to(node_path(item), node_path(item.session))
         test_name = item_name(item)
         is_quarantined = (test_filename, test_name) in self.quarantined_tests and (
             self.quarantine_mode == QuarantineMode.IGNORE_FAILURES)
