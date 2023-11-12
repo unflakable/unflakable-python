@@ -4,16 +4,18 @@
 
 from __future__ import annotations
 
+import gzip
+import json
 import logging
 import platform
 import pprint
 import sys
 import time
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional
+from typing import TYPE_CHECKING, List, Mapping, Optional
 
 import pkg_resources
 import requests
-from requests import Response, Session
+from requests import HTTPError, Response, Session
 
 if TYPE_CHECKING:
     from typing_extensions import NotRequired, TypedDict
@@ -67,12 +69,20 @@ class TestRunRecord(TypedDict):
     attempts: List[TestRunAttemptRecord]
 
 
-class CreateTestSuiteRunRequest(TypedDict):
+class CreateTestSuiteRunInlineRequest(TypedDict):
     branch: NotRequired[Optional[str]]
     commit: NotRequired[Optional[str]]
     start_time: str
     end_time: str
     test_runs: List[TestRunRecord]
+
+
+class CreateTestSuiteRunUploadRequest(TypedDict):
+    upload_id: str
+
+
+class CreateTestSuiteRunUploadUrlResponse(TypedDict):
+    upload_id: str
 
 
 class TestSuiteRunPendingSummary(TypedDict):
@@ -82,24 +92,35 @@ class TestSuiteRunPendingSummary(TypedDict):
     commit: NotRequired[Optional[str]]
 
 
-def send_api_request(
-    api_key: str,
-    method: Literal['GET', 'POST'],
+def __new_requests_session() -> Session:
+    session = Session()
+    session.headers['User-Agent'] = USER_AGENT
+
+    return session
+
+
+def __send_api_request(
+    session: Session,
+    api_key: Optional[str],
+    method: Literal['GET', 'POST', 'PUT'],
     url: str,
     logger: logging.Logger,
     headers: Optional[Mapping[str, str | bytes | None]] = None,
-    json: Optional[Any] = None,
+    body: Optional[str | bytes] = None,
     verify: Optional[bool | str] = None,
 ) -> Response:
-    session = Session()
-    session.headers.update({
-        'Authorization': f'Bearer {api_key}',
-        'User-Agent': USER_AGENT,
-    })
-
     for idx in range(NUM_REQUEST_TRIES):
         try:
-            response = session.request(method, url, headers=headers, json=json, verify=verify)
+            response = session.request(
+                method,
+                url,
+                headers={
+                    **({'Authorization': f'Bearer {api_key}'} if api_key is not None else {}),
+                    **(headers if headers is not None else {})
+                },
+                data=body,
+                verify=verify,
+            )
             if response.status_code not in [429, 500, 502, 503, 504]:
                 return response
             elif idx + 1 != NUM_REQUEST_TRIES:
@@ -124,7 +145,7 @@ def send_api_request(
 
 
 def create_test_suite_run(
-        request: CreateTestSuiteRunRequest,
+        request: CreateTestSuiteRunInlineRequest,
         test_suite_id: str,
         api_key: str,
         base_url: Optional[str],
@@ -133,7 +154,53 @@ def create_test_suite_run(
 ) -> TestSuiteRunPendingSummary:
     logger.debug(f'creating test suite run {pprint.pformat(request)}')
 
-    run_response = send_api_request(
+    session = __new_requests_session()
+
+    create_upload_url_response = __send_api_request(
+        session=session,
+        api_key=api_key,
+        method='POST',
+        url=(
+            f'{base_url if base_url is not None else BASE_URL}/api/v1/test-suites/{test_suite_id}'
+            '/runs/upload'
+        ),
+        logger=logger,
+        verify=not insecure_disable_tls_validation,
+    )
+
+    create_upload_url_response.raise_for_status()
+    if create_upload_url_response.status_code != 201:
+        raise HTTPError(
+            f'Expected 201 response but received {create_upload_url_response.status_code}')
+
+    upload_presigned_url = create_upload_url_response.headers.get('Location', None)
+    if upload_presigned_url is None:
+        raise HTTPError('Location response header not found')
+
+    create_upload_url_response_body: CreateTestSuiteRunUploadUrlResponse = (
+        create_upload_url_response.json()
+    )
+    upload_id = create_upload_url_response_body['upload_id']
+
+    gzipped_request = gzip.compress(json.dumps(request).encode('utf8'))
+    upload_response = __send_api_request(
+        session=session,
+        api_key=None,
+        method='PUT',
+        url=upload_presigned_url,
+        logger=logger,
+        headers={
+            'Content-Encoding': 'gzip',
+            'Content-Type': 'application/json',
+        },
+        body=gzipped_request,
+        verify=not insecure_disable_tls_validation,
+    )
+    upload_response.raise_for_status()
+
+    request_body: CreateTestSuiteRunUploadRequest = {'upload_id': upload_id}
+    run_response = __send_api_request(
+        session=session,
         api_key=api_key,
         method='POST',
         url=(
@@ -142,7 +209,7 @@ def create_test_suite_run(
         ),
         logger=logger,
         headers={'Content-Type': 'application/json'},
-        json=request,
+        body=json.dumps(request_body).encode('utf8'),
         verify=not insecure_disable_tls_validation,
     )
     run_response.raise_for_status()
@@ -162,7 +229,10 @@ def get_test_suite_manifest(
 ) -> TestSuiteManifest:
     logger.debug(f'fetching manifest for test suite {test_suite_id}')
 
-    manifest_response = send_api_request(
+    session = __new_requests_session()
+
+    manifest_response = __send_api_request(
+        session=session,
         api_key=api_key,
         method='GET',
         url=(

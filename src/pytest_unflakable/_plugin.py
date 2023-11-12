@@ -14,7 +14,7 @@ import _pytest
 import pytest
 from _pytest.config import ExitCode
 
-from ._api import (CreateTestSuiteRunRequest, TestAttemptResult,
+from ._api import (CreateTestSuiteRunInlineRequest, TestAttemptResult,
                    TestRunAttemptRecord, TestRunRecord, TestSuiteManifest,
                    build_test_suite_run_url, create_test_suite_run)
 
@@ -496,7 +496,7 @@ class UnflakablePlugin:
     def _build_test_suite_run_request(
             self,
             session: pytest.Session,
-    ) -> CreateTestSuiteRunRequest:
+    ) -> CreateTestSuiteRunInlineRequest:
         test_runs: List[TestRunRecord] = []
         for (test_filename, test_name), item_reports in self.item_reports.items():
             is_quarantined = (test_filename, test_name) in self.quarantined_tests
@@ -581,7 +581,7 @@ class UnflakablePlugin:
         request.update(**({'branch': self.branch} if self.branch is not None else {}))
         request.update(**({'commit': self.commit} if self.commit is not None else {}))
 
-        return cast(CreateTestSuiteRunRequest, request)
+        return cast(CreateTestSuiteRunInlineRequest, request)
 
     # Allows us to override the exit code if all the failures are quarantined. We need this to be a
     # wrapper so that the default hook still gets invoked and prints the summary line with the test

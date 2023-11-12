@@ -1949,6 +1949,9 @@ def test_stepwise(
         expect_progress=False,
     )
 
+    # Prevent duplicate upload error.
+    os.environ['PYTEST_CURRENT_TEST'] += '-step2'
+
     run_test_case(
         pytester,
         manifest,

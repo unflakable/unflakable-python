@@ -1,7 +1,10 @@
 """Tests for pytest_unflakable plugin."""
-
+import gzip
+import hashlib
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 import itertools
+import json
+import os
 import re
 import subprocess
 from enum import Enum
@@ -27,6 +30,7 @@ else:
 
 MOCK_RUN_ID = 'MOCK_RUN_ID'
 MOCK_SUITE_ID = 'MOCK_SUITE_ID'
+MOCK_TEAM_ID = 'MOCK_TEAM_ID'
 
 # e.g., 2022-01-23T04:05:06.000000+00:00
 TIMESTAMP_REGEX = (
@@ -229,16 +233,72 @@ class GitMock:
             raise RuntimeError(f'unexpected git call with args: {repr(args)}')
 
 
-def mock_create_test_suite_run_response(
-        request: requests.Request,
+__uploads: Dict[str, Optional[_api.CreateTestSuiteRunInlineRequest]] = {}
+
+
+def __upload_id_for_current_test() -> str:
+    return hashlib.sha1(os.environ['PYTEST_CURRENT_TEST'].encode('utf8')).hexdigest()
+
+
+def __upload_url(upload_id: str) -> str:
+    return (
+        f'https://s3.mock.amazonaws.com/unflakable-backend-mock-test-uploads/teams/{MOCK_TEAM_ID}'
+        f'/suites/{MOCK_SUITE_ID}/runs/upload/{upload_id}?X-Amz-Signature=MOCK_SIGNATURE'
+    )
+
+
+def __mock_create_test_suite_run_upload_url_response(
+        upload_id: str,
+        request: requests_mock.request._RequestObjectProxy,
+        context: requests_mock.response._Context,
+) -> _api.CreateTestSuiteRunUploadUrlResponse:
+    upload_url = __upload_url(upload_id)
+    assert upload_url not in __uploads
+    __uploads[upload_url] = None
+
+    context.headers['Location'] = upload_url
+    return {
+        'upload_id': upload_id,
+    }
+
+
+def __match_upload(request: requests_mock.request._RequestObjectProxy) -> bool:
+    return re.match(
+        r'^%s[0-9a-f]{40}%s$' % (
+            re.escape(
+                'https://s3.mock.amazonaws.com/unflakable-backend-mock-test-uploads/teams/'
+                f'{MOCK_TEAM_ID}/suites/{MOCK_SUITE_ID}/runs/upload/'
+            ),
+            re.escape('?X-Amz-Signature=MOCK_SIGNATURE')
+        ),
+        request.url
+    ) is not None
+
+
+def __mock_upload_response(
+        request: requests_mock.request._RequestObjectProxy,
+        context: requests_mock.response._Context,
+) -> bytes:
+    assert request.url in __uploads
+    assert __uploads[request.url] is None, 'duplicate upload'
+    __uploads[request.url] = json.loads(gzip.decompress(request.body))
+    return b''
+
+
+def __mock_create_test_suite_run_response(
+        request: requests_mock.request._RequestObjectProxy,
         context: requests_mock.response._Context,
 ) -> _api.TestSuiteRunPendingSummary:
-    request_body: _api.CreateTestSuiteRunRequest = request.json()
+    request_body: _api.CreateTestSuiteRunUploadRequest = request.json()
+    upload_url = __upload_url(request_body['upload_id'])
+    upload = __uploads[upload_url]
+    assert upload is not None, 'missing upload'
+
     return {
         'run_id': MOCK_RUN_ID,
         'suite_id': MOCK_SUITE_ID,
-        'branch': request_body.get('branch'),
-        'commit': request_body.get('commit'),
+        'branch': upload.get('branch'),
+        'commit': upload.get('commit'),
     }
 
 
@@ -274,7 +334,7 @@ def run_test_case(
 ) -> None:
     api_key_path = pytester.makefile('', expected_api_key) if use_api_key_path else None
     requests_mocker.get(
-        url='https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/manifest',
+        url=f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/manifest',
         request_headers={'Authorization': f'Bearer {expected_api_key}'},
         complete_qs=True,
         response_list=[
@@ -286,11 +346,11 @@ def run_test_case(
         }] if manifest is not None else [])
     )
 
+    upload_id = __upload_id_for_current_test()
     requests_mocker.post(
-        url='https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs',
+        url=f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/runs/upload',
         request_headers={
-            'Authorization': f'Bearer {expected_api_key}',
-            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {expected_api_key}'
         },
         complete_qs=True,
         response_list=[
@@ -298,8 +358,36 @@ def run_test_case(
             for _ in range(failed_upload_requests)
         ] + [{
             'status_code': 201,
-            'json': mock_create_test_suite_run_response,
+            'json': lambda request, context: __mock_create_test_suite_run_upload_url_response(
+                upload_id,
+                request,
+                context,
+            ),
         }]
+    )
+
+    requests_mocker.put(
+        # The __match_upload() function matches the URL.
+        requests_mock.ANY,
+        request_headers={
+            'Content-Encoding': 'gzip',
+            'Content-Type': 'application/json',
+        },
+        complete_qs=True,
+        status_code=200,
+        additional_matcher=__match_upload,
+        content=__mock_upload_response,
+    )
+
+    requests_mocker.post(
+        url=f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/runs',
+        request_headers={
+            'Authorization': f'Bearer {expected_api_key}',
+            'Content-Type': 'application/json',
+        },
+        complete_qs=True,
+        status_code=201,
+        json=__mock_create_test_suite_run_response,
     )
 
     pytest_args: List[str] = (
@@ -314,6 +402,7 @@ def run_test_case(
         ) + list(extra_args)
     )
 
+    __pytest_current_test = os.environ['PYTEST_CURRENT_TEST']
     if monkeypatch is not None:
         with monkeypatch.context() as mp:
             for key, val in (env_vars if env_vars is not None else {}).items():
@@ -322,6 +411,9 @@ def run_test_case(
             result = pytester.runpytest(*pytest_args)
     else:
         result = pytester.runpytest(*pytest_args)
+
+    # pytester clears PYTEST_CURRENT_TEST for some reason.
+    os.environ['PYTEST_CURRENT_TEST'] = __pytest_current_test
 
     if verbose:
         test_outcomes_output = [
@@ -508,9 +600,10 @@ def run_test_case(
             request = requests_mocker.request_history[manifest_attempt]
 
             assert request.url == (
-                'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/manifest'
+                f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/manifest'
             )
             assert request.method == 'GET'
+            assert request.headers.get('Authorization', '') == f'Bearer {expected_api_key}'
             assert request.body is None
 
             if manifest_attempt > 0:
@@ -527,26 +620,57 @@ def run_test_case(
         )
 
         for upload_attempt in range(expected_upload_attempts):
-            create_test_suite_run_request = requests_mocker.request_history[
+            create_upload_url_request = requests_mocker.request_history[
                 expected_get_test_suite_manifest_attempts + upload_attempt
             ]
-            assert create_test_suite_run_request.url == (
-                'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs')
-            assert create_test_suite_run_request.method == 'POST'
+            assert create_upload_url_request.url == (
+                f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/runs/upload')
+            assert create_upload_url_request.method == 'POST'
+            assert (
+                create_upload_url_request.headers.get('Authorization')
+                == f'Bearer {expected_api_key}'
+            )
 
-            create_test_suite_run_body: _api.CreateTestSuiteRunRequest = (
-                create_test_suite_run_request.json()
+            # Failed attempts only include the initial request.
+            if upload_attempt < failed_upload_requests:
+                continue
+
+            upload_request = requests_mocker.request_history[
+                expected_get_test_suite_manifest_attempts + upload_attempt + 1
+            ]
+            assert upload_request.url == __upload_url(upload_id)
+            assert upload_request.method == 'PUT'
+            assert upload_request.headers.get('Content-Encoding') == 'gzip'
+            assert upload_request.headers.get('Content-Type') == 'application/json'
+            upload_body: _api.CreateTestSuiteRunInlineRequest = (
+                json.loads(gzip.decompress(upload_request.body))
             )
 
             if expected_commit is not None:
-                assert create_test_suite_run_body['commit'] == expected_commit
+                assert upload_body['commit'] == expected_commit
             else:
-                assert 'commit' not in create_test_suite_run_body
+                assert 'commit' not in upload_body
 
             if expected_branch is not None:
-                assert create_test_suite_run_body['branch'] == expected_branch
+                assert upload_body['branch'] == expected_branch
             else:
-                assert 'branch' not in create_test_suite_run_body
+                assert 'branch' not in upload_body
+
+            create_test_suite_run_request = requests_mocker.request_history[
+                expected_get_test_suite_manifest_attempts + upload_attempt + 2
+            ]
+            assert create_test_suite_run_request.url == (
+                f'https://app.unflakable.com/api/v1/test-suites/{MOCK_SUITE_ID}/runs')
+            assert create_test_suite_run_request.method == 'POST'
+            assert (
+                create_test_suite_run_request.headers.get('Authorization')
+                == f'Bearer {expected_api_key}'
+            )
+            assert create_test_suite_run_request.headers.get('Content-Type') == 'application/json'
+            create_test_suite_run_body: _api.CreateTestSuiteRunUploadRequest = (
+                create_test_suite_run_request.json()
+            )
+            assert create_test_suite_run_body['upload_id'] == upload_id
 
             if upload_attempt > 0:
                 assert (
@@ -557,7 +681,8 @@ def run_test_case(
                 )
 
         assert requests_mocker.call_count == (
-            expected_get_test_suite_manifest_attempts + expected_upload_attempts
+            expected_get_test_suite_manifest_attempts
+            + failed_upload_requests + 3 * (expected_upload_attempts - failed_upload_requests)
         ), 'Expected %d total API requests, but received %d' % (
             expected_get_test_suite_manifest_attempts + expected_upload_attempts,
             requests_mocker.call_count,
@@ -566,8 +691,6 @@ def run_test_case(
         # Checked expected User-Agent. We do this here instead of using an `additional_matcher` to
         # make errors easier to diagnose.
         for request in requests_mocker.request_history:
-            assert request.headers.get('Authorization', '') == f'Bearer {expected_api_key}'
-
             assert_regex(
                 r'^unflakable-pytest-plugin/.* \(PyTest .*; Python .*; Platform .*\)$',
                 request.headers.get('User-Agent', '')
