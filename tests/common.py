@@ -7,6 +7,8 @@ import subprocess
 from enum import Enum
 from typing import (TYPE_CHECKING, Callable, Dict, Iterable, List, Optional,
                     Sequence, Tuple, cast)
+from unittest import mock
+from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
@@ -244,11 +246,13 @@ def assert_regex(regex: str, string: str) -> None:
     assert re.match(regex, string) is not None, f'`{string}` does not match regex {regex}'
 
 
+@patch.multiple('time', sleep=mock.DEFAULT)
 @requests_mock.Mocker(case_sensitive=True, kw='requests_mocker')
 def run_test_case(
         pytester: pytest.Pytester,
-        manifest: _api.TestSuiteManifest,
+        manifest: Optional[_api.TestSuiteManifest],
         requests_mocker: requests_mock.Mocker,
+        sleep: Mock,
         expected_test_file_outcomes: List[
             Tuple[str, List[Tuple[Tuple[str, ...], List[_TestAttemptOutcome]]]]],
         expected_test_result_counts: _TestResultCounts,
@@ -265,14 +269,21 @@ def run_test_case(
         env_vars: Optional[Dict[str, str]] = None,
         expect_progress: bool = True,
         expect_xdist: bool = False,
+        failed_manifest_requests: int = 0,
+        failed_upload_requests: int = 0,
 ) -> None:
     api_key_path = pytester.makefile('', expected_api_key) if use_api_key_path else None
     requests_mocker.get(
         url='https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/manifest',
         request_headers={'Authorization': f'Bearer {expected_api_key}'},
         complete_qs=True,
-        status_code=200,
-        json=manifest,
+        response_list=[
+            {'exc': requests.exceptions.ConnectTimeout}
+            for _ in range(failed_manifest_requests)
+        ] + ([{
+            'status_code': 200,
+            'json': manifest,
+        }] if manifest is not None else [])
     )
 
     requests_mocker.post(
@@ -282,8 +293,13 @@ def run_test_case(
             'Content-Type': 'application/json',
         },
         complete_qs=True,
-        status_code=201,
-        json=mock_create_test_suite_run_response,
+        response_list=[
+            {'exc': requests.exceptions.ConnectTimeout}
+            for _ in range(failed_upload_requests)
+        ] + [{
+            'status_code': 201,
+            'json': mock_create_test_suite_run_response,
+        }]
     )
 
     pytest_args: List[str] = (
@@ -483,42 +499,82 @@ def run_test_case(
         expected_test_result_counts.non_skipped_tests > 0) else [])
     )
 
-    assert requests_mocker.call_count == (
-        (
-            2 if expected_uploaded_test_runs is not None and (
-                expected_test_result_counts.non_skipped_tests > 0) else 1
-        ) if plugin_enabled else 0
-    )
+    if plugin_enabled:
+        expected_get_test_suite_manifest_attempts = (
+            failed_manifest_requests + (1 if failed_manifest_requests <
+                                        _api.NUM_REQUEST_TRIES and manifest is not None else 0)
+        )
+        for manifest_attempt in range(expected_get_test_suite_manifest_attempts):
+            request = requests_mocker.request_history[manifest_attempt]
 
-    # Checked expected User-Agent. We do this here instead of using an `additional_matcher` to make
-    # errors easier to diagnose.
-    for request in requests_mocker.request_history:
-        assert_regex(
-            r'^unflakable-pytest-plugin/.* \(PyTest .*; Python .*; Platform .*\)$',
-            request.headers.get('User-Agent', '')
+            assert request.url == (
+                'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/manifest'
+            )
+            assert request.method == 'GET'
+            assert request.body is None
+
+            if manifest_attempt > 0:
+                assert (
+                    sleep.call_args_list[manifest_attempt - 1] == call(2 ** (manifest_attempt - 1))
+                )
+
+        expected_upload_attempts = (
+            failed_upload_requests + (1 if (
+                failed_upload_requests < _api.NUM_REQUEST_TRIES
+                and expected_uploaded_test_runs is not None
+                and expected_test_result_counts.non_skipped_tests != 0
+            ) else 0)
         )
 
-    if plugin_enabled and (
-            expected_uploaded_test_runs is not None and
-            expected_test_result_counts.non_skipped_tests > 0):
-        create_test_suite_run_request = requests_mocker.request_history[1]
-        assert create_test_suite_run_request.url == (
-            'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs')
-        assert create_test_suite_run_request.method == 'POST'
+        for upload_attempt in range(expected_upload_attempts):
+            create_test_suite_run_request = requests_mocker.request_history[
+                expected_get_test_suite_manifest_attempts + upload_attempt
+            ]
+            assert create_test_suite_run_request.url == (
+                'https://app.unflakable.com/api/v1/test-suites/MOCK_SUITE_ID/runs')
+            assert create_test_suite_run_request.method == 'POST'
 
-        create_test_suite_run_body: _api.CreateTestSuiteRunRequest = (
-            create_test_suite_run_request.json()
+            create_test_suite_run_body: _api.CreateTestSuiteRunRequest = (
+                create_test_suite_run_request.json()
+            )
+
+            if expected_commit is not None:
+                assert create_test_suite_run_body['commit'] == expected_commit
+            else:
+                assert 'commit' not in create_test_suite_run_body
+
+            if expected_branch is not None:
+                assert create_test_suite_run_body['branch'] == expected_branch
+            else:
+                assert 'branch' not in create_test_suite_run_body
+
+            if upload_attempt > 0:
+                assert (
+                    sleep.call_args_list[
+                        max(expected_get_test_suite_manifest_attempts - 1, 0) +
+                        upload_attempt - 1
+                    ] == call(2 ** (upload_attempt - 1))
+                )
+
+        assert requests_mocker.call_count == (
+            expected_get_test_suite_manifest_attempts + expected_upload_attempts
+        ), 'Expected %d total API requests, but received %d' % (
+            expected_get_test_suite_manifest_attempts + expected_upload_attempts,
+            requests_mocker.call_count,
         )
 
-        if expected_commit is not None:
-            assert create_test_suite_run_body['commit'] == expected_commit
-        else:
-            assert 'commit' not in create_test_suite_run_body
+        # Checked expected User-Agent. We do this here instead of using an `additional_matcher` to
+        # make errors easier to diagnose.
+        for request in requests_mocker.request_history:
+            assert request.headers.get('Authorization', '') == f'Bearer {expected_api_key}'
 
-        if expected_branch is not None:
-            assert create_test_suite_run_body['branch'] == expected_branch
-        else:
-            assert 'branch' not in create_test_suite_run_body
+            assert_regex(
+                r'^unflakable-pytest-plugin/.* \(PyTest .*; Python .*; Platform .*\)$',
+                request.headers.get('User-Agent', '')
+            )
+    else:
+        assert requests_mocker.call_count == 0
+        assert sleep.call_count == 0
 
     assert result.ret == expected_exit_code, (
         f'expected exit code {expected_exit_code}, but got {result.ret}')

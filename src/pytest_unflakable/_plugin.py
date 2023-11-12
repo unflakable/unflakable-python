@@ -12,6 +12,7 @@ from typing import (TYPE_CHECKING, Any, Dict, Generator, List, Mapping,
 
 import _pytest
 import pytest
+from _pytest.config import ExitCode
 
 from ._api import (CreateTestSuiteRunRequest, TestAttemptResult,
                    TestRunAttemptRecord, TestRunRecord, TestSuiteManifest,
@@ -609,7 +610,10 @@ class UnflakablePlugin:
                     logger=self.logger,
                 )
             except Exception as e:
-                pytest.exit('ERROR: Failed to report results to Unflakable: %s\n' % (repr(e)), 1)
+                pytest.exit(
+                    'ERROR: Failed to report results to Unflakable: %s\n' % (repr(e)),
+                    ExitCode.INTERNAL_ERROR,
+                )
             else:
                 print(
                     'Unflakable report: %s' % (
@@ -623,4 +627,4 @@ class UnflakablePlugin:
         # We multiply by 2 here because each quarantined test is double-counted by the Session: once
         # for the quarantined report, and once for the fake report that's used for logging errors.
         if session.testsfailed > 0 and session.testsfailed == self.num_tests_quarantined * 2:
-            pytest.exit('All failed tests are quarantined', 0)
+            pytest.exit('All failed tests are quarantined', ExitCode.OK)

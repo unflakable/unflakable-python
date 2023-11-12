@@ -2,14 +2,18 @@
 
 #  Copyright (c) 2022-2023 Developer Innovations, LLC
 
+from __future__ import annotations
+
 import logging
 import platform
 import pprint
 import sys
-from typing import TYPE_CHECKING, List, Optional
+import time
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional
 
 import pkg_resources
 import requests
+from requests import Response, Session
 
 if TYPE_CHECKING:
     from typing_extensions import NotRequired, TypedDict
@@ -29,6 +33,7 @@ USER_AGENT = (
     f'unflakable-pytest-plugin/{PACKAGE_VERSION} (PyTest {PYTEST_VERSION}; '
     f'Python {PYTHON_VERSION}; Platform {PLATFORM_VERSION})'
 )
+NUM_REQUEST_TRIES = 3
 
 
 class TestRef(TypedDict):
@@ -77,6 +82,47 @@ class TestSuiteRunPendingSummary(TypedDict):
     commit: NotRequired[Optional[str]]
 
 
+def send_api_request(
+    api_key: str,
+    method: Literal['GET', 'POST'],
+    url: str,
+    logger: logging.Logger,
+    headers: Optional[Mapping[str, str | bytes | None]] = None,
+    json: Optional[Any] = None,
+    verify: Optional[bool | str] = None,
+) -> Response:
+    session = Session()
+    session.headers.update({
+        'Authorization': f'Bearer {api_key}',
+        'User-Agent': USER_AGENT,
+    })
+
+    for idx in range(NUM_REQUEST_TRIES):
+        try:
+            response = session.request(method, url, headers=headers, json=json, verify=verify)
+            if response.status_code not in [429, 500, 502, 503, 504]:
+                return response
+            elif idx + 1 != NUM_REQUEST_TRIES:
+                logger.warning(
+                    'Retrying request to `%s` due to unexpected response with status code %d' % (
+                        url,
+                        response.status_code,
+                    )
+                )
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if idx + 1 != NUM_REQUEST_TRIES:
+                logger.warning('Retrying %s request to `%s` due to error: %s' %
+                               (method, url, repr(e)))
+            else:
+                raise
+
+        sleep_sec = (2 ** idx)
+        logger.debug('Sleeping for %f second(s) before retry' % sleep_sec)
+        time.sleep(sleep_sec)
+
+    return response
+
+
 def create_test_suite_run(
         request: CreateTestSuiteRunRequest,
         test_suite_id: str,
@@ -87,16 +133,15 @@ def create_test_suite_run(
 ) -> TestSuiteRunPendingSummary:
     logger.debug(f'creating test suite run {pprint.pformat(request)}')
 
-    run_response = requests.post(
+    run_response = send_api_request(
+        api_key=api_key,
+        method='POST',
         url=(
             f'{base_url if base_url is not None else BASE_URL}/api/v1/test-suites/{test_suite_id}'
             '/runs'
         ),
-        headers={
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json',
-            'User-Agent': USER_AGENT,
-        },
+        logger=logger,
+        headers={'Content-Type': 'application/json'},
         json=request,
         verify=not insecure_disable_tls_validation,
     )
@@ -117,15 +162,14 @@ def get_test_suite_manifest(
 ) -> TestSuiteManifest:
     logger.debug(f'fetching manifest for test suite {test_suite_id}')
 
-    manifest_response = requests.get(
+    manifest_response = send_api_request(
+        api_key=api_key,
+        method='GET',
         url=(
             f'{base_url if base_url is not None else BASE_URL}/api/v1/test-suites/{test_suite_id}'
             '/manifest'
         ),
-        headers={
-            'Authorization': f'Bearer {api_key}',
-            'User-Agent': USER_AGENT,
-        },
+        logger=logger,
         verify=not insecure_disable_tls_validation,
     )
     manifest_response.raise_for_status()

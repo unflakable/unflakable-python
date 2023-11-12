@@ -2136,4 +2136,111 @@ def test_fetch_failure(
         expected_commit=None,
         expect_xdist=xdist,
         extra_args=XDIST_ARGS if xdist else [],
+        failed_manifest_requests=_api.NUM_REQUEST_TRIES,
+    )
+
+
+# The manifest should be followed even if the initial fetch request fails.
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
+def test_fetch_retry(
+    pytester: pytest.Pytester,
+    subprocess_mock: GitMock,
+    xdist: bool,
+) -> None:
+    pytester.makepyfile(test_input="""
+        def test_quarantined():
+            assert False
+    """)
+
+    subprocess_mock.update(branch=None, commit=None)
+
+    run_test_case(
+        pytester,
+        manifest={
+            'quarantined_tests': [
+                {
+                    'test_id': 'MOCK_TEST_ID',
+                    'filename': 'test_input.py',
+                    'name': ['test_quarantined']
+                }
+            ]
+        },
+        expected_test_file_outcomes=[
+            ('test_input.py', [
+                (('test_quarantined',), [
+                    _TestAttemptOutcome.QUARANTINED,
+                    _TestAttemptOutcome.RETRY_QUARANTINED,
+                    _TestAttemptOutcome.RETRY_QUARANTINED,
+                ]),
+            ]),
+        ],
+        expected_test_result_counts=_TestResultCounts(num_quarantined=1),
+        expected_uploaded_test_runs={('test_input.py', ('test_quarantined',)): [
+            'quarantined', 'quarantined', 'quarantined']},
+        expected_exit_code=ExitCode.OK,
+        expected_branch=None,
+        expected_commit=None,
+        expect_xdist=xdist,
+        extra_args=XDIST_ARGS if xdist else [],
+        failed_manifest_requests=1,
+    )
+
+
+# The run should fail if we fail to upload the results.
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
+def test_upload_failure(
+    pytester: pytest.Pytester,
+    subprocess_mock: GitMock,
+    xdist: bool,
+) -> None:
+    pytester.makepyfile(test_input="""
+        def test_pass():
+            pass
+    """)
+
+    subprocess_mock.update(branch=None, commit=None)
+
+    run_test_case(
+        pytester,
+        manifest={'quarantined_tests': []},
+        expected_test_file_outcomes=[
+            ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
+        expected_test_result_counts=_TestResultCounts(num_passed=1),
+        expected_uploaded_test_runs=None,
+        expected_exit_code=ExitCode.INTERNAL_ERROR,
+        expected_branch=None,
+        expected_commit=None,
+        expect_xdist=xdist,
+        extra_args=XDIST_ARGS if xdist else [],
+        failed_upload_requests=_api.NUM_REQUEST_TRIES,
+    )
+
+
+# The run should succeed even if the first upload attempt fails.
+@pytest.mark.parametrize(TEST_PARAMS_XDIST_ARG_NAMES, TEST_PARAMS_XDIST_ARG_VALUES)
+def test_upload_retry(
+    pytester: pytest.Pytester,
+    subprocess_mock: GitMock,
+    xdist: bool,
+) -> None:
+    pytester.makepyfile(test_input="""
+        def test_pass():
+            pass
+    """)
+
+    subprocess_mock.update(branch=None, commit=None)
+
+    run_test_case(
+        pytester,
+        manifest={'quarantined_tests': []},
+        expected_test_file_outcomes=[
+            ('test_input.py', [(('test_pass',), [_TestAttemptOutcome.PASSED])])],
+        expected_test_result_counts=_TestResultCounts(num_passed=1),
+        expected_uploaded_test_runs={('test_input.py', ('test_pass',)): ['pass']},
+        expected_exit_code=ExitCode.OK,
+        expected_branch=None,
+        expected_commit=None,
+        expect_xdist=xdist,
+        extra_args=XDIST_ARGS if xdist else [],
+        failed_upload_requests=1,
     )
