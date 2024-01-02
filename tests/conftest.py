@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023 Developer Innovations, LLC
+#  Copyright (c) 2022-2024 Developer Innovations, LLC
 
 from typing import Generator
 from unittest.mock import patch

@@ -1,6 +1,6 @@
 """Tests for pytest_unflakable plugin."""
 
-#  Copyright (c) 2022-2023 Developer Innovations, LLC
+#  Copyright (c) 2022-2024 Developer Innovations, LLC
 
 import os
 import platform
