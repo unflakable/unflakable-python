@@ -586,7 +586,7 @@ class UnflakablePlugin:
     # Allows us to override the exit code if all the failures are quarantined. We need this to be a
     # wrapper so that the default hook still gets invoked and prints the summary line with the test
     # category counts.
-    @pytest.hookimpl(hookwrapper=True, tryfirst=True)
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
     def pytest_sessionfinish(
             self,
             session: pytest.Session,
