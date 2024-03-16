@@ -648,6 +648,20 @@ def run_test_case(
                 json.loads(gzip.decompress(upload_request.body))
             )
 
+            assert_regex(TIMESTAMP_REGEX, upload_body['start_time'])
+            assert_regex(TIMESTAMP_REGEX, upload_body['end_time'])
+
+            actual_test_runs = {
+                (test_run_record['filename'], tuple(test_run_record['name'])): [
+                    attempt['result'] for attempt in test_run_record['attempts']
+                ]
+                for test_run_record in upload_body['test_runs']
+            }
+            assert actual_test_runs == expected_uploaded_test_runs
+
+            # Make sure there aren't any duplicate test keys.
+            assert len(upload_body['test_runs']) == len(actual_test_runs)
+
             if expected_commit is not None:
                 assert upload_body['commit'] == expected_commit
             else:
