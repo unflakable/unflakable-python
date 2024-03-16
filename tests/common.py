@@ -8,6 +8,8 @@ import json
 import os
 import re
 import subprocess
+import time
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import (TYPE_CHECKING, Callable, Dict, Iterable, List, Optional,
@@ -404,6 +406,8 @@ def run_test_case(
         ) + list(extra_args)
     )
 
+    start_time = datetime.fromtimestamp(time.time(), timezone.utc).isoformat('T', 'microseconds')
+
     __pytest_current_test = os.environ['PYTEST_CURRENT_TEST']
     if monkeypatch is not None:
         with monkeypatch.context() as mp:
@@ -413,6 +417,10 @@ def run_test_case(
             result = pytester.runpytest(*pytest_args)
     else:
         result = pytester.runpytest(*pytest_args)
+
+    end_time = datetime.fromtimestamp(time.time(), timezone.utc).isoformat('T', 'microseconds')
+
+    assert end_time >= start_time
 
     # pytester clears PYTEST_CURRENT_TEST for some reason.
     os.environ['PYTEST_CURRENT_TEST'] = __pytest_current_test
@@ -649,7 +657,12 @@ def run_test_case(
             )
 
             assert_regex(TIMESTAMP_REGEX, upload_body['start_time'])
+            assert upload_body['start_time'] >= start_time
+
             assert_regex(TIMESTAMP_REGEX, upload_body['end_time'])
+            assert upload_body['end_time'] <= end_time
+
+            assert upload_body['end_time'] >= upload_body['start_time']
 
             actual_test_runs = {
                 (test_run_record['filename'], tuple(test_run_record['name'])): [
@@ -658,6 +671,23 @@ def run_test_case(
                 for test_run_record in upload_body['test_runs']
             }
             assert actual_test_runs == expected_uploaded_test_runs
+
+            for test_run_record in upload_body['test_runs']:
+                for attempt in test_run_record['attempts']:
+                    attempt_start_time = attempt['start_time']
+                    assert isinstance(attempt_start_time, str)
+                    assert_regex(TIMESTAMP_REGEX, attempt_start_time)
+                    # Check for timestamp interference (e.g., from freezetime).
+                    assert attempt_start_time >= start_time
+
+                    attempt_end_time = attempt['end_time']
+                    assert isinstance(attempt_end_time, str)
+                    assert_regex(TIMESTAMP_REGEX, attempt_end_time)
+                    assert attempt_end_time <= end_time
+
+                    assert attempt_end_time >= attempt_start_time
+
+                    assert isinstance(attempt['duration_ms'], int)
 
             # Make sure there aren't any duplicate test keys.
             assert len(upload_body['test_runs']) == len(actual_test_runs)

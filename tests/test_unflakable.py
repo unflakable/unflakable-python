@@ -2255,3 +2255,57 @@ def test_upload_retry(
         extra_args=XDIST_ARGS if xdist else [],
         failed_upload_requests=1,
     )
+
+
+@pytest.mark.parametrize(TEST_PARAMS_VERBOSE_XDIST_ARG_NAMES,
+                         TEST_PARAMS_VERBOSE_XDIST_ARG_VALUES)
+def test_freeze_time(
+    pytester: pytest.Pytester,
+    subprocess_mock: GitMock,
+    verbose: bool,
+    xdist: bool,
+) -> None:
+    pytester.makepyfile(test_input="""
+        from freezegun import freeze_time
+        import unittest
+
+        @freeze_time("2023-02-04")
+        class FrozenTimeTests(unittest.TestCase):
+            @freeze_time("2024-01-01")
+            def test_pass(self):
+                pass
+
+            @freeze_time("2024-01-02")
+            def test_pass2(self):
+                pass
+
+            @freeze_time("2024-01-03")
+            def test_pass3(self):
+                pass
+    """)
+
+    subprocess_mock.update(branch=None, commit=None)
+
+    run_test_case(
+        pytester,
+        manifest={'quarantined_tests': []},
+        expected_test_file_outcomes=[
+            ('test_input.py', [
+                (('FrozenTimeTests', 'test_pass'), [_TestAttemptOutcome.PASSED]),
+                (('FrozenTimeTests', 'test_pass2'), [_TestAttemptOutcome.PASSED]),
+                (('FrozenTimeTests', 'test_pass3'), [_TestAttemptOutcome.PASSED]),
+            ])
+        ],
+        expected_test_result_counts=_TestResultCounts(num_passed=3),
+        expected_uploaded_test_runs={
+            ('test_input.py', ('FrozenTimeTests', 'test_pass')): ['pass'],
+            ('test_input.py', ('FrozenTimeTests', 'test_pass2')): ['pass'],
+            ('test_input.py', ('FrozenTimeTests', 'test_pass3')): ['pass'],
+        },
+        expected_exit_code=ExitCode.OK,
+        expected_branch=None,
+        expected_commit=None,
+        expect_xdist=xdist,
+        extra_args=XDIST_ARGS if xdist else [],
+        verbose=verbose,
+    )
