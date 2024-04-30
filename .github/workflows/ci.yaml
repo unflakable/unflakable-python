@@ -85,6 +85,12 @@ jobs:
           - pytest73-xdist
           - pytest74
           - pytest74-xdist
+          - pytest80
+          - pytest80-xdist
+          - pytest81
+          - pytest81-xdist
+          - pytest82
+          - pytest82-xdist
         exclude:
           # PyTest < 7.3 uses methods that are deprecated in Python 3.12 and emits warnings that
           # cause the integration tests to fail.
