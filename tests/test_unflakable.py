@@ -6,8 +6,8 @@ import os
 import platform
 import re
 import sys
+from importlib.metadata import version
 
-import pkg_resources
 import pytest
 from _pytest.config import ExitCode
 
@@ -30,7 +30,7 @@ def _1python_version() -> None:
 
 __PYTEST_MINOR_VERSION_MATCH = re.match(
     r'^([0-9]+\.[0-9]+)\..*$',
-    pkg_resources.get_distribution('pytest').version,
+    version('pytest'),
 )
 assert __PYTEST_MINOR_VERSION_MATCH is not None
 __PYTEST_MINOR_VERSION = __PYTEST_MINOR_VERSION_MATCH.group(1)

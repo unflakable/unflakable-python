@@ -11,9 +11,9 @@ import platform
 import pprint
 import sys
 import time
+from importlib.metadata import version
 from typing import TYPE_CHECKING, List, Mapping, Optional
 
-import pkg_resources
 import requests
 from requests import HTTPError, Response, Session
 
@@ -27,9 +27,9 @@ else:
 
 BASE_URL = 'https://app.unflakable.com'
 TEST_NAME_ENTRY_MAX_LENGTH = 4096
-PACKAGE_VERSION = pkg_resources.get_distribution('pytest_unflakable').version
+PACKAGE_VERSION = version('pytest_unflakable')
 PLATFORM_VERSION = platform.platform()
-PYTEST_VERSION = pkg_resources.get_distribution('pytest').version
+PYTEST_VERSION = version('pytest')
 PYTHON_VERSION = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
 USER_AGENT = (
     f'unflakable-pytest-plugin/{PACKAGE_VERSION} (PyTest {PYTEST_VERSION}; '

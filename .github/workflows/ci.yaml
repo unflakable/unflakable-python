@@ -67,11 +67,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python:
-          - "3.7"
           - "3.8"
           - "3.9"
           - "3.10"
           - "3.11"
+          - "3.12"
         tox_env:
           - pytest62
           - pytest62-xdist
@@ -85,6 +85,25 @@ jobs:
           - pytest73-xdist
           - pytest74
           - pytest74-xdist
+        exclude:
+          # PyTest < 7.3 uses methods that are deprecated in Python 3.12 and emits warnings that
+          # cause the integration tests to fail.
+          - python: "3.12"
+            tox_env: pytest62
+          - python: "3.12"
+            tox_env: pytest62-xdist
+          - python: "3.12"
+            tox_env: pytest70
+          - python: "3.12"
+            tox_env: pytest70-xdist
+          - python: "3.12"
+            tox_env: pytest71
+          - python: "3.12"
+            tox_env: pytest71-xdist
+          - python: "3.12"
+            tox_env: pytest72
+          - python: "3.12"
+            tox_env: pytest72-xdist
 
     steps:
       - uses: actions/checkout@v4
